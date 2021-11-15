@@ -1,0 +1,4 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/480p15/partial_movie_files/simulate_stimuli/3163782288_2559461702_2386045996.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/480p15/partial_movie_files/simulate_stimuli/2201830969_959760213_334791924.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/480p15/partial_movie_files/simulate_stimuli/2201830969_3953820662_1613630596.mp4'

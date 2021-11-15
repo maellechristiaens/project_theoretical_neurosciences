@@ -1,0 +1,12 @@
+# This file is used internally by FFMPEG.
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/450974505_410677973_1240453128.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_2559461702_693179445.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_4168270958_2233902210.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_2330606532_3172780237.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_3953820662_3285611508.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_428070754_3419770924.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_62431714_1005354187.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_2285157398_3765951170.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_2671209035_685763156.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_3840467988_3925418729.mp4'
+file 'file:C:/Users/maell/Documents/ENS/Cours/M2/S1/Manim/NeuroTheo/media/videos/stimuli/1080p60/partial_movie_files/formula_explanation/34786186_2285157398_2240349786.mp4'
