@@ -1,187 +1,106 @@
-import scipy as sp
-import scipy.signal
-import matplotlib.pyplot as plt
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+'''
+SIMULATE TRAJECTORIES
+'''
+
 import numpy as np
-import seaborn as sns
-import pandas as pd
-import random
-import simulate_stimuli
 
-print('imported')
+import parameters
 
+params_sim = parameters.params_sim
+theta_test = parameters.theta_test
+theta_opt = parameters.theta_opt
+N, Durs, dur, Gamma, gamma, q, dt, dx, nbs, dphi, dtphi = parameters.extract_fixed_params(params_sim)
+rho, b, l, sgm_i, sgm_a, sgm_s, lbda, phi, tau_phi = parameters.extract_free_params(theta_test)
 
-######## PARAMETERS ########
-
-### Fixed parameters ###
-
-#We focus here on simulating the stimulus of the rats
-
-###Fixed parameters
-N = 40 # average number of pulses (n_pulses/s)
-q = 1 # unit of evidence, magnitude of one click without adaptation (psi = 1)
-# an ideal observer adds one q at every right pulse and subtracts one q at every left pulse
-dt = 0.02 # time step for simulations (in s)
-dx = 0.25*q # bin size for space discretization (values of vector x)
-isi = 0 #the minimum interval time between 2 stimuli
-sim_params = {
-            'q': q,
-            'N': N,
-            'dt': dt,
-            'dx': dx,
-            }
-
-###Other parameters
-
-dur = np.random.uniform(0.1, 1.2) #a trial has a duration in [0, 1.2] (in sec)
-gamma = 0.5 #the difficulty of the trial (the more gamma is low, the more difficult it is)
+print('simulate_trajectories imported')
 
 
-### Parameters to fit to data ###
+# -----------------------------------------------------------
 
-def extract_params(theta):
-    '''Define global variables for the whole code.
-    Input : theta, dictionary containing the set of paramters of one model.'''
-    rho = theta['rho'] # biais, threshold to output a decision by comparing the value of a at the end of the trial
-    b = theta['b'] # sticky decision bound, amount of evidence necessary to commit to a decision
-    l = theta['l'] # lapse rate, fraction of trials on which a random response is made
-    sgm_i = theta['sgm_i'] # noise in the initial value of a
-    sgm_a = theta['sgm_a'] # diffusion constant, noise in a
-    sgm_s = theta['sgm_s'] # noise when adding evidence from one pulse (scaled by C amplitude)
-    lbda = theta['lbda'] # consistent drift in a
-    # leaky or forgetful case : lbda < 0 (drift toward a = 0, and later pulses affect the decision more than earlier pulses)
-    # unstable or impulsive case : lbda > 0 (drift away from a = 0, and earlier pulses affect the decision more than later pulses)
-    if lbda != 0:
-        tau = abs(1/lbda) # memory time constant
-    psi = theta['psi'] # adaptation strength, factor by which C is multiplied following a pulse
-    # facilitation : psi > 1
-    # depression : psi < 1
-    tau_psi = theta['tau_psi'] # adaptation time constant for C recovery to its unadapted value, 1
-    return rho, b, l, sgm_i, sgm_a, sgm_s, lbda, psi, tau_psi
-
-paramsA = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 0.34,
-            'tau_psi': 0.04,
-            'rho': 0,
-            'l': 0}
-paramsB = {'lbda': -20,
-            'b': 4,
-            'sgm_a': 0,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsC = {'lbda': -10,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsD = {'lbda': 10,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsE = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsF = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 140**0.5,
-            'sgm_s': 0,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsG = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 70**0.5,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-
-params_test = {'lbda': 0.1,
-            'b': 30,
-            'sgm_a': 70**0.5,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-
-models = {'accumulator_depression': paramsA,
-        'burst_detector': paramsB,
-        'leaky_accumulator': paramsC,
-        'unstable_accumulator': paramsD,
-        'accumulator_all_sensory_noise': paramsE,
-        'accumulator_all_accumulating_noise': paramsF,
-        'accumulator_mixed_sensory_accumulating_noise': paramsG}
-
-rho, b, l, sgm_i, sgm_a, sgm_s, lbda, psi, tau_psi = extract_params(params_test)
-
-
-######## EULER METHOD ########
-
-def accumulator_evolution(a, C, t, stim_R, stim_L, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, b=b, dt=dt):
+def accumulator_evolution(a, C, stim_R_t, stim_L_t, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, b=b, dt=dt, q=q):
     '''Dynamics of the memory accumulator.
-    Inputs :
+    Inputs : 
         a : value of the accumulator at time t
         C : value of the stimulus magnitude at time t
         t : time step during the course simulation
         stim_R, stim_L : stimulation sequences, containing the number of pulses occurring during each time step
     Output : new value of the accumulator at t+dt.'''
+    if stim_R_t!=0 and stim_R_t==stim_L_t : # sumultaneous clicks cancel
+        # print('cancelation')
+        return a
     if a >= b:
         return b
     elif a <= -b:
         return -b
     else :
-        da = lbda*a*dt + (stim_R[t]*np.random.normal(1,sgm_s) + stim_L[t]*np.random.normal(1,sgm_s))*C*dt + np.random.normal(0,sgm_a*dt**0.5)
+        input_R = sum([q*np.random.normal(1,sgm_s) for k in range(stim_R_t)])
+        input_L = sum([q*np.random.normal(1,sgm_s) for k in range(stim_L_t)])
+        da = lbda*a*dt + (input_R - input_L)*C + np.random.normal(0,sgm_a*q*dt**0.5)
+        # inputs are not multiplied by dt, as q is the quantity to be added at each time step (in the model equation, implicit in the units of the parameters)
+        # sgm_a**2 in units of q**2/sec -> SDT = sgm_a*q*dt**0.5
         return a + da
 
-def adaptation_evolution(C, t, stim_R, stim_L, psi=psi, tau_psi=tau_psi, dt=dt):
+def adaptation_evolution(C, stim_R_t, stim_L_t, phi=phi, tau_phi=tau_phi, dt=dt):
     '''Dynamics of the adaptation, i.e. change in the stimulus magnitude.
-    Inputs :
+    Inputs : 
         C : value of the stimulus magnitude at time t
         t : time step during the simulation
         stim_R, stim_L : stimulation sequences, containing the number of pulses occurring during each time step
     Output : new value of the stimulus magnitude at t+dt, after adaptation.'''
-    if stim_R[t]!=0 and stim_R[t]==stim_R[t] : # sumultaneous clicks cancel
-        return 0
-    else:
-        dC = ((1-C)/tau_psi + (psi-1)*C*abs((stim_R[t]-stim_L[t])))*dt
-        return C + dC
+    dC = ((1-C)/tau_phi + (phi-1)*C*(stim_R_t+stim_L_t))*dt
+    return C + dC
 
-def euler(stim_R, stim_L, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, sgm_i=sgm_i, b=b, psi=psi, tau_psi=tau_psi, dt=dt):
+def euler(stim_R, stim_L, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, sgm_i=sgm_i, b=b, phi=phi, tau_phi=tau_phi, dt=dt, q=q):
     T = len(stim_R)
-    a_history = np.zeros(T)
-    C_history = np.zeros(T)
+    a_evol = np.zeros(T)
+    C_evol = np.zeros(T)
     # initialisation
-    C_history[0] = 0 # simultaneous pulses
-    a_history[0] = np.random.normal(0,sgm_i)
+    C_evol[0] = 1 # or 0 if simultaneous pulses at t=0 ? not necessary in our model
+    a_evol[0] = np.random.normal(0,sgm_i)
     for t in range(1,T):
-        C_history[t] = adaptation_evolution(C_history[t-1], t, stim_R, stim_L, psi, tau_psi, dt)
-        a_history[t] = accumulator_evolution(a_history[t-1], C_history[t-1], t, stim_R, stim_L, lbda, sgm_a, sgm_s, b, dt)
-    return a_history, C_history
+        C_evol[t] = adaptation_evolution(C_evol[t-1], stim_R[t], stim_L[t], phi, tau_phi, dt)
+        a_evol[t] = accumulator_evolution(a_evol[t-1], C_evol[t-1], stim_R[t], stim_L[t], lbda, sgm_a, sgm_s, b, dt, q)
+    return a_evol, C_evol
+
+
+# -----------------------------------------------------------
+
+def generate_trajectories(trials, params=params_sim, theta=theta_test, theta_opt=theta_opt, ntraj=2):
+    rho, b, l, sgm_i, sgm_a, sgm_s, lbda, phi, tau_phi = parameters.extract_free_params(theta)
+    N, Durs, dur, Gamma, gamma, q, dt, dx, nbs, dphi, dtphi = parameters.extract_fixed_params(params)
+    trajectories = []
+    for i in range(len(trials)):
+        stim_R, stim_L = trials[i]['stim_R'], trials[i]['stim_L']
+        trajectories.append({'a_evols': [], 'C_evol': None})
+        for k in range(ntraj):
+            a_evol, C_evol = euler(stim_R, stim_L, lbda, sgm_a, sgm_s, sgm_i, b, phi, tau_phi, dt, q)
+            trajectories[i]['a_evols'].append(a_evol)
+        trajectories[i]['C_evol'] = C_evol
+    return trajectories
+
+
+def decision_making(a, rho=rho, l=l):
+    if np.random.random() < l: # decision at random
+        if np.random.random() < 0.5:
+            return 'L'
+        else:
+            return 'R'
+    else:
+        if a < rho:
+            return 'L'
+        else:
+            return 'R'
+
+def generate_data(trials, params=params_sim, theta=theta_test):
+    rho, b, l, sgm_i, sgm_a, sgm_s, lbda, phi, tau_phi = parameters.extract_free_params(theta)
+    N, Durs, dur, Gamma, gamma, q, dt, dx, nbs, dphi, dtphi = parameters.extract_fixed_params(params)
+    D = []
+    for trial in trials:
+        stim_R, stim_L = trial['stim_R'], trial['stim_L']
+        a_evol, _ = euler(stim_R, stim_L, params, theta)
+        D.append(decision_making(a_evol[-1], rho, l))
+    return D
+

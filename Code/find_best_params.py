@@ -1,291 +1,168 @@
-import scipy as sp
-import scipy.signal
-import matplotlib.pyplot as plt
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+'''
+PARAMETER FITTING
+'''
+
 import numpy as np
-import seaborn as sns
-import pandas as pd
-import random
-import simulate_stimuli
-import simulate_trajectories
 
-print('imported')
+import parameters
+import simulate_trajectories as traj
+import numerical_fokker_plank as fkp
 
 
-######## PARAMETERS ########
+params_sim = parameters.params_sim
+theta_test = parameters.theta_test
+N, Durs, dur, Gamma, gamma, q, dt, dx, nbs, dphi, dtphi = parameters.extract_fixed_params(params_sim)
+rho, b, l, sgm_i, sgm_a, sgm_s, lbda, phi, tau_phi = parameters.extract_free_params(theta_test)
 
-### Fixed parameters ###
-
-#We focus here on simulating the stimulus of the rats
-
-###Fixed parameters
-N = 40 # average number of pulses (n_pulses/s)
-q = 1 # unit of evidence, magnitude of one click without adaptation (psi = 1)
-# an ideal observer adds one q at every right pulse and subtracts one q at every left pulse
-dt = 0.02 # time step for simulations (in s)
-dx = 0.25*q # bin size for space discretization (values of vector x)
-isi = 0 #the minimum interval time between 2 stimuli
-sim_params = {
-            'q': q,
-            'N': N,
-            'dt': dt,
-            'dx': dx,
-            }
-
-###Other parameters
-
-dur = np.random.uniform(0.1, 1.2) #a trial has a duration in [0, 1.2] (in sec)
-gamma = 0.5 #the difficulty of the trial (the more gamma is low, the more difficult it is)
+print('find_best_params imported')
 
 
-### Parameters to fit to data ###
+# -----------------------------------------------------------
 
-def extract_params(theta):
-    '''Define global variables for the whole code.
-    Input : theta, dictionary containing the set of paramters of one model.'''
-    rho = theta['rho'] # biais, threshold to output a decision by comparing the value of a at the end of the trial
-    b = theta['b'] # sticky decision bound, amount of evidence necessary to commit to a decision
-    l = theta['l'] # lapse rate, fraction of trials on which a random response is made
-    sgm_i = theta['sgm_i'] # noise in the initial value of a
-    sgm_a = theta['sgm_a'] # diffusion constant, noise in a
-    sgm_s = theta['sgm_s'] # noise when adding evidence from one pulse (scaled by C amplitude)
-    lbda = theta['lbda'] # consistent drift in a
-    # leaky or forgetful case : lbda < 0 (drift toward a = 0, and later pulses affect the decision more than earlier pulses)
-    # unstable or impulsive case : lbda > 0 (drift away from a = 0, and earlier pulses affect the decision more than later pulses)
-    if lbda != 0:
-        tau = abs(1/lbda) # memory time constant
-    psi = theta['psi'] # adaptation strength, factor by which C is multiplied following a pulse
-    # facilitation : psi > 1
-    # depression : psi < 1
-    tau_psi = theta['tau_psi'] # adaptation time constant for C recovery to its unadapted value, 1
-    return rho, b, l, sgm_i, sgm_a, sgm_s, lbda, psi, tau_psi
-
-paramsA = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 0.34,
-            'tau_psi': 0.04,
-            'rho': 0,
-            'l': 0}
-paramsB = {'lbda': -20,
-            'b': 4,
-            'sgm_a': 0,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsC = {'lbda': -10,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsD = {'lbda': 10,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsE = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 0,
-            'sgm_s': 140**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsF = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 140**0.5,
-            'sgm_s': 0,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-paramsG = {'lbda': 0,
-            'b': 30,
-            'sgm_a': 70**0.5,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-
-params_test = {'lbda': 0.1,
-            'b': 30,
-            'sgm_a': 70**0.5,
-            'sgm_s': 70**0.5,
-            'sgm_i': 0,
-            'psi': 1,
-            'tau_psi': 1, # Na ?
-            'rho': 0,
-            'l': 0}
-
-models = {'accumulator_depression': paramsA,
-        'burst_detector': paramsB,
-        'leaky_accumulator': paramsC,
-        'unstable_accumulator': paramsD,
-        'accumulator_all_sensory_noise': paramsE,
-        'accumulator_all_accumulating_noise': paramsF,
-        'accumulator_mixed_sensory_accumulating_noise': paramsG}
-
-rho, b, l, sgm_i, sgm_a, sgm_s, lbda, psi, tau_psi = extract_params(params_test)
-
-
-######## FOKKER PLANK METHOD ########
-
-def discretize_space(b=b, dx=dx):
-    X = [-k for k in np.arange(0,b,dx)][:0:-1] + [k for k in np.arange(0,b,dx)]
-    w = 2*(b - X[-1])
-    X = [X[0]-w] + X + [X[-1]+w]
-    return np.array(X)
-
-def discretize_gaussian(sgm_min, sgm_max, dx=dx, scale_sgm=10, scale_dx=2, nsgm=4):
-    if dx < sgm_min :
-        ds = dx/scale_dx
-    else :
-        dx = sgm_min/scale_sgm # bin size for discretizing the gaussian probability (values of s)
-    Ds = nsgm*sgm_max # maximum distance from the mean for discretizing the gaussian probability
-    return ds, Ds
-
-def compute_nbins(ds, Ds):
-    if (Ds/ds)%1 != 0 :
-        nbins_S = int(2*Ds/ds)+1
-    else :
-        nbins_S = int(2*Ds/ds)-1
-    return nbins_S
-
-def total_input(C_history, stim_R, stim_L):
-    CR_history = C_history*stim_R
-    CL_history = C_history*stim_L
-    c_input = CR_history - CL_history
-    return CR_history, CL_history, c_input
-
-def total_variance(CR_history, CL_history, sgm_a=sgm_a, sgm_s=sgm_s, dt=dt):
-    sgm_dt_input = (sgm_a**2*dt + (CR_history + CL_history)*sgm_s**2)**0.5 # already takes into account dt**0.5
-    return sgm_dt_input
-
-def deterministic_drift(x, c, lbda=lbda, dt=dt):
-    m = np.exp(lbda*dt)*(x + c/lbda) - c/lbda
-    return m
-
-def gaussian(s, m, sgm):
-    return (1/(2*np.pi*sgm**2)**0.5)*np.exp(-(s-m)**2/(2*sgm**2))
-
-def positions(x, m, ds, Ds):
-    s = np.array([m-k for k in np.arange(0,Ds,ds)][:0:-1] + [m+k for k in np.arange(0,Ds,ds)]) # discretization of space for approximating the probability distribution
-    return s
-
-def ornstein_uhlenbeck_process(X, c_input, sgm_dt_input, lbda=lbda, dt=dt, dx=dx, scale_sgm=10, scale_dx=2, nsgm=4, ds=None, Ds=None):
-    T = len(c_input)
-    nbins_X = len(X) # number of positions, including 2 extra bins outside boundaries
-    if ds is None:
-        ds, Ds = discretize_gaussian(np.min(sgm_dt_input), np.max(sgm_dt_input), dx, scale_sgm, scale_dx, nsgm)
-    s0 = np.array([k for k in np.arange(0,Ds,ds)][:0:-1] + [k for k in np.arange(0,Ds,ds)])
-    nbins_S = len(s0)
-    print('dx', dx, 'ds', ds, 'Ds', Ds)
-    S = np.zeros((nbins_X, nbins_S, T))
-    P_s = np.zeros((nbins_X, nbins_S, T))
-    for t in range(T):
-        for j in range(1,nbins_X-1):
-            S[j,:,t] = positions(X[j], deterministic_drift(X[j], c_input[t], lbda, dt), ds, Ds)
-            P_s[j,:,t] = gaussian(s0, 0, sgm_dt_input[t])*ds # P([s, s+ds]) = p(s)ds -> multiply by ds
-    S[0,:,:] = X[0]  # positions outside bound assigned to b (after computing the probability distribution for ease)
-    S[-1,:,:] = X[-1]
-    print(S.shape)
-    return S, P_s
-
-def split_mass_low(s, x_low, x_up):
-    norm = x_up - x_low
-    p_low = (x_up - s)/norm
-    return p_low
-
-def split_mass_up(s, x_low, x_up):
-    norm = x_up - x_low
-    p_up = (s - x_low)/norm
-    return p_up
-
-def forward_transition_matrix(X, S, P_s):
-    nbins_X = len(X)
-    T = S.shape[2]
-    F = np.zeros((nbins_X,nbins_X,T))
-    # transient states
-    for i in range(1,nbins_X-1):
-        print(i)
-        cond_low = (S>X[i-1]) & (S<X[i])
-        cond_up = (S>X[i]) & (S<X[i+1])
-        cond_eq = (S==X[i])
-        S_low = S*cond_low
-        S_up = S*cond_up
-        S_eq = S*cond_eq
-        P_s_low = P_s*cond_low
-        P_s_up = P_s*cond_up
-        P_s_eq = P_s*cond_eq
-        W_low = split_mass_low(S_up, X[i], X[i+1])
-        W_up = split_mass_up(S_low, X[i-1], X[i])
-        P_tot = np.sum(W_up*P_s_low, axis=1) + np.sum(W_low*P_s_up, axis=1) + np.sum(P_s_eq, axis=1)
-        F[i,:,:] = P_tot
-    # absorbant state i = 0
-    cond_low = (S<=X[0])
-    cond_up = (S>X[0]) & (S<X[1])
-    S_low = S*cond_low
-    S_up = S*cond_up
-    P_s_low = P_s*cond_low
-    P_s_up = P_s*cond_up
-    W_low = split_mass_low(S_up, X[0], X[1])
-    P_tot = np.sum(P_s_low, axis=1) + np.sum(W_low*P_s_up, axis=1)
-    F[0,:,:] = P_tot
-    F[0,0,:] = 1 # absorbant state
-    # absorbant state i = nbins_X-1
-    cond_low = (S>X[-2]) & (S<X[-1])
-    cond_up = (S>=X[-1])
-    S_low = S*cond_low
-    S_up = S*cond_up
-    P_s_low = P_s*cond_low
-    P_s_up = P_s*cond_up
-    W_up = split_mass_up(S_low, X[-2], X[-1])
-    P_tot = np.sum(W_up*P_s_low, axis=1) + np.sum(P_s_up, axis=1)
-    F[-1,:,:] = P_tot
-    F[-1,-1,:] = 1
-    return F
-
-def fokker_plank(F, X, sgm_i=sgm_i, dx=dx):
-    nbins_X = len(X)
+def backward_transition_matrix(F, Pa, check=True, renorm=True):
+    nbx = F.shape[0]
     T = F.shape[2]
-    P_a = np.zeros((nbins_X,T))
-    if sgm_i != 0 :
-        P_a[:,0] = gaussian(X, 0, sgm_i)*dx
-    else:
-        P_a[:,0][X==0] = 1
-    for t in range(1,T):
-        P_a[:,t] = np.dot(F[:,:,t],P_a[:,t-1])
-    return P_a
+    B = np.zeros((nbx,nbx,T-1)) # initialize to 0 : values replacing *unproblematic* divisions by 0 (i.e. Pj = 0 but either Pi = 0 or Ft = 0)
+    # T-1 : B goes from t=1 to t=T, whereas F starts at t=0 (and the last time is not used)
+    Ft = np.transpose(F.copy(), axes=(1,0,2)) # permutation on dimensions 0 and 1
+    Pi = Pa.copy()[:,np.newaxis,:]
+    Pj = Pa.copy()[np.newaxis,:,:]
+    Pjcorr = Pj.copy()
+    Pjcorr[Pj==0] = 1 # avoid division by 0
+    B = Ft[:,:,1:]*Pi[:,:,:-1]/Pjcorr[:,:,1:] # translation by one time step
+    
+    null_cols = np.argwhere(np.sum(B, axis=0)==0) # detect columns which sum to 0
+    for a, t in null_cols:
+        B[a,a,t] = 1 # approximate dirac ?
 
-def proba_left(P_a, X, rho=rho, dx=dx):
-    return np.sum(P_a[X<=rho,-1]*dx)
+    if renorm:
+        Bs = np.sum(B, axis=0) # dim0: xi, dim1: T
+        Bs = Bs[np.newaxis,:,:]
+        B /= Bs
 
-def solve_numerical(stim_R, stim_L, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, sgm_i=sgm_i, b=b, rho=rho, psi=psi, tau_psi=tau_psi, dt=dt, dx=dx, scale_sgm=10, scale_dx=2, nsgm=4, ds=None, Ds=None):
-    X = discretize_space(b, dx)
-    C_history = euler(stim_R, stim_L, lbda, sgm_a, sgm_s, sgm_i, b, psi, tau_psi, dt)[1]
-    CR_history, CL_history, c_input = total_input(C_history, stim_R, stim_L)
-    sgm_dt_input = total_variance(CR_history, CL_history, sgm_a, sgm_s, dt)
-    print('Ornstein Uhlenbeck')
-    S, P_s = ornstein_uhlenbeck_process(X, c_input, sgm_dt_input, lbda, dt, dx, scale_sgm, scale_dx, nsgm, ds, Ds)
-    print('Forward transition matrix')
-    F = forward_transition_matrix(X, S, P_s)
-    print('Fokker Plank')
-    P_a = fokker_plank(F, X, sgm_i, dx)
-    d = proba_left(P_a, X, rho, dx)
-    return X, F, P_a, d
+    if check: 
+        print('Maximum value in B :', np.max(B))
+        print('Sum across lines :\n',  np.sum(B, axis=0))
+        # detail *problematic* divisions by 0 (i.e. Pj = 0 and neither Pi = 0 nor Ft = 0)
+        test = (Pj[:,:,1:]==0)*(Pi[:,:,:-1]!=0)*(Ft[:,:,1:]!=0)
+        print('Number of problematic divisions by 0 :', sum(test[test==1]))
+        ii, jj, tt = np.where(test==1)
+        for i, j, t in zip(ii, jj,tt):
+            print('Pi = ', Pi[i,0,t], 'Ft = ', Ft[i,j,t])
+        print('Negligible -> replaced by 0.')
+
+    return B
+
+
+def initialize_posterior_distribution(d, PaT, X, dx=dx, rho=rho, renorm=True):
+    P_inter = PaT*((X<=rho)*(d=='L') + (X>rho)*(d=='R'))
+    pb0 = P_inter/np.sum(P_inter)
+    if renorm:
+        pb0 /= np.sum(pb0)
+    return pb0
+
+def posterior_probability_distribution(pb0, B):
+    nbx = B.shape[0]
+    T = B.shape[2]+1 # B goes from t=1 to t=T
+    Pb = np.zeros((nbx,T))
+    Pb[:,-1] = pb0
+    for t in np.arange(1,T-1) : 
+        Pb[:,-t-1] = np.dot(B[:,:,-t],Pb[:,-t])
+    return Pb
+
+
+def gradient_L(Pa, Pb, dF_dtheta):
+    nbx = Pa.shape[0]
+    T = Pa.shape[1]
+    Pbj = Pb[np.newaxis,:,:]
+    Pai = Pa[:,np.newaxis,:]
+    Paj = Pa[np.newaxis,:,:]
+    Paicorr = Pai.copy()
+    Paicorr[Pai==0] = 1 # avoid division by 0
+    G = Paj[:,:,:-1]/Paicorr[:,:,1:]*Pbj[:,:,1:]*dF[:,:,1:]
+    dL = np.sum(G) # too small or too large values ?
+    print(np.max(G))
+    print(np.min(G))
+    return dL
+
+# -----------------------------------------------------------
+
+def finite_differences(stim_R, stim_L, phi=phi, dphi=dphi, tau_phi=tau_phi, dtphi=dtphi, q=q):
+    cR0, cL0 = fkp.input_pulses(stim_R, stim_L, phi, tau_phi, dt, q)
+    cR1, cL1 = fkp.input_pulses(stim_R, stim_L, phi+dphi, tau_phi, dt, q) # phi -> phi+dphi
+    cR2, cL2 = fkp.input_pulses(stim_R, stim_L, phi, tau_phi+dtphi, dt, q) # tau_phi -> tau_phi+dtphi
+    dcR_dphi = (cR1-cR0)/dphi 
+    dcL_dphi = (cL1-cL0)/dphi
+    dcR_dtphi = (cR2-cR0)/dtphi 
+    dcL_dtphi = (cL2-cL0)/dtphi
+    return cR0, cL0, dcR_dphi, dcL_dphi, dcR_dtphi, dcL_dtphi # length T
+
+def derivatives_ds(S, X, stim_R, stim_L, dcR_dphi, dcL_dphi, dcR_dtphi, dcL_dtphi, lbda=lbda, sgm_a=sgm_a, sgm_s=sgm_s, nbs=nbs, dt=dt):
+    T = len(stim_R)
+    nbx = len(X)
+    
+    Xx = X[:,np.newaxis,np.newaxis] # length nbx
+    k = np.arange(-int(nbs/2), int(nbs/2)+1) # length nbs
+    k = k[np.newaxis,:,np.newaxis]
+    cR, cL, dcR_dphi, dcL_dphi, dcR_dtphi, dcL_dtphi = finite_differences(stim_R, stim_L, phi, dphi, tau_phi, dtphi, q)
+    cR = cR[np.newaxis,np.newaxis,:] # length T
+    cL = cL[np.newaxis,np.newaxis,:]
+    sgmdt_in = fkp.total_variance(cR, cL, sgm_a, sgm_s, dt)
+
+    ds_dlbda = dt*np.exp(lbda*dt)*(Xx+(cR-cL)/lbda) # dim (nbx, T)
+
+    ds_dsgmdt_in = 8*k/nbs # length nbs
+    dsgmdt_in_dsgm_a = sgm_a*dt/sgmdt_in**0.5 # length T
+    dsgmdt_in_dsgm_s = sgm_a*(cR+cL)/sgmdt_in**0.5
+    ds_dsgm_a = ds_dsgmdt_in*dsgmdt_in_dsgm_a # dims (nbs, T)
+    ds_dsgm_s = ds_dsgmdt_in*dsgmdt_in_dsgm_s
+
+    dm_dc = 1/lbda*(np.exp(lbda*dt) - 1) # scalar
+    dsgmdt_in_dc = sgm_s**2/(2*sgmdt_in**0.5) # length T
+    ds_dcR = dm_dc + 8*k*dsgmdt_in_dc # dims (nbs, T)
+    ds_dcL = -dm_dc + 8*k*dsgmdt_in_dc # dm_dcR = -dm_dcL = dm_dc and dsgmdt_in_dcR = dsgmdt_in_dcL = dsgmdt_in_dc
+    ds_dphi = ds_dcR*dcR_dphi + ds_dcL*dcL_dphi 
+    ds_dtphi = ds_dcR*dcR_dtphi + ds_dcL*dcL_dtphi 
+
+    dxL_db = -2 # scalars
+    dxR_db = 2
+    xbR, xbL, xR, xL = X[-1], X[0], X[-2], X[1]
+    ds_dxR = np.abs(S-xR)/(xbR-xR)*(S>xR)*(S<b) # only affects variables at borders
+    ds_dxL = np.abs(xL-S)/(xL-xbL)*(S>-b)*(S<xL) # dim (nbx, nbs, T)
+    ds_db = ds_dxR*dxR_db + ds_dxL*dxL_db 
+
+    return ds_dlbda, ds_dsgm_a, ds_dsgm_s, ds_dphi, ds_dtphi, ds_db
+
+
+def gradient_F(dF_ds, X, stim_R, stim_L, phi=phi, dphi=dphi, tau_phi =tau_phi, dtphi=dtphi, q=q):
+    cR, cL, dcR_dphi, dcL_dphi, dcR_dtphi, dcL_dtphi = finite_differences(stim_R, stim_L, phi, dphi, tau_phi, dtphi, q)
+    S, Ps = fkp.ornstein_uhlenbeck_process(X, cR, cL, lbda, dt, dx, nbs, renormalize=True, check=True)
+
+    ds_dlbda, ds_dsgm_a, ds_dsgm_s, ds_dphi, ds_dtphi, ds_db = derivatives_ds(S, X, stim_R, stim_L, dcR_dphi, dcL_dphi, dcR_dtphi, dcL_dtphi, lbda, sgm_a, sgm_s, nbs, dt)
+
+    dF_dlbda = ds_dlbda*dF_ds
+    dF_dsgm_a = ds_dsgm_a*dF_ds
+    dF_dsgm_s = ds_dsgm_s*dF_ds
+    dF_dphi = ds_dphi*dF_ds
+    dF_dtphi = ds_dtphi*dF_ds
+    dF_db = ds_db*dF_ds
+    return dF_dlbda, dF_dsgm_a, dF_dsgm_s, dF_dphi, dF_dtphi, dF_db
+
+
+
+# -----------------------------------------------------------
+
+def log_likelihood(D, trials, theta=parameters.theta_test, dt=dt, q=q, dx=dx, scale_sgm=10, scale_dx=2, nsgm=4, ds=None, Ds=None):
+    rho, b, l, sgm_i, sgm_a, sgm_s, lbda, phi, tau_phi = parameters.extract_free_params(theta)
+    L = 0
+    for k in range(len(trials)):
+        stim_R, stim_L = trials[k]['stim_R'], trials[k]['stim_L']
+        X, F, Pa, p_L = traj.solve_fokker_plank(stim_R, stim_L, lbda, sgm_a, sgm_s, sgm_i, b, rho, phi, tau_phi, dt, q, dx, scale_sgm, scale_dx, nsgm, ds, Ds)
+        if D[k] == 'L':
+            L += np.log(p_L)
+        else:
+            L += np.log(1-p_L)
+    return L
